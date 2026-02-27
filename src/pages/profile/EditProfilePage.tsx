@@ -1,9 +1,9 @@
-const ProfilePage = () => {
+const EditProfilePage = () => {
   return (
     <div className="flex h-screen items-center justify-center bg-black text-white">
-      <p>Profile Page</p>
+      <p>Edit Profile Page</p>
     </div>
   );
 };
 
-export default ProfilePage;
+export default EditProfilePage;

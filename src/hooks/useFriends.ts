@@ -24,6 +24,8 @@ export const useFriends = () => {
     queryFn:  () => friendshipsApi.pending(),
   });
 
+  ////console.log(pendingQuery.data)
+
   // ── Helper: invalidate everything friends-related ──────────────────
   // called after any mutation so all components re-sync from server
   const invalidateAll = () => {
@@ -38,6 +40,7 @@ export const useFriends = () => {
       invalidateAll();
     },
     onError: (err: any) => {
+      // console.error('Error sending friend request:', err);
       toast.error(err?.response?.data?.message || err?.message || 'Could not send request');
     },
   });
@@ -81,7 +84,7 @@ export const useFriends = () => {
   return {
     // data
     friends:        friendsQuery.data?.friendships ?? [],
-    pendingRequests: pendingQuery.data?.requests   ?? [],
+    pendingRequests: pendingQuery.data?.friendships   ?? [],
     friendCount:    friendsQuery.data?.total        ?? 0,
     pendingCount:   pendingQuery.data?.total        ?? 0,
 
@@ -100,5 +103,6 @@ export const useFriends = () => {
     isAccepting: acceptRequest.isPending,
     isRejecting: rejectRequest.isPending,
     isRemoving:  removeFriend.isPending,
+    
   };
 };

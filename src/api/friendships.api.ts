@@ -2,8 +2,8 @@ import { apiClient } from './client';
 import type { Friendship, PendingRequest } from '@/types/friendship.types';
 
 export const friendshipsApi = {
-  send: (username: string) =>
-    apiClient.post<{ message: string }>('/api/friendships', { username })
+  send: (recipientUsername: string) =>
+    apiClient.post<{ message: string }>('/api/friendships', { recipientUsername })
       .then(r => r.data),
 
   list: () =>
@@ -11,7 +11,7 @@ export const friendshipsApi = {
       .then(r => r.data),
 
   pending: () =>
-    apiClient.get<{ requests: PendingRequest[]; total: number }>('/api/friendships/pending')
+    apiClient.get<{ friendships: PendingRequest[]; total: number }>('/api/friendships/pending')
       .then(r => r.data),
 
   accept: (id: string) =>

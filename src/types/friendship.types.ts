@@ -18,10 +18,11 @@ export interface Friendship {
 
 export interface PendingRequest {
   id: string;
-  requester: {
+  user: {
     id: string;
     username: string;
     avatarUrl: string | null;
   };
+  status: string;
   createdAt: string;
 }

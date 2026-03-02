@@ -11,6 +11,7 @@ import FriendCard from '@/components/friends/FriendCard';
 import FriendRequestCard from '@/components/friends/FriendRequestCard';
 import SearchResultCard from '@/components/friends/SearchResultCard';
 import Spinner from '@/components/ui/Spinner';
+import { PendingRequest } from '@/types/friendship.types';
 
 type Tab = 'friends' | 'requests' | 'search';
 
@@ -266,10 +267,10 @@ const FriendsPage = () => {
                 </div>
               ) : (
                 <div className="grid grid-cols-1 xl:grid-cols-2 gap-3">
-                  {pendingRequests.map(request => (
+                  {pendingRequests.map((friendships: PendingRequest) => (
                     <FriendRequestCard
-                      key={request.id}
-                      request={request}
+                      key={friendships.id}
+                      request={friendships}
                       onAccept={acceptRequest}
                       onReject={rejectRequest}
                       isAccepting={isAccepting}

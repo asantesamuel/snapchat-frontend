@@ -35,7 +35,7 @@ const LoginPage = () => {
 
   return (
     <AuthLayout
-      title="Welcome back 👋"
+      title="Welcome back"
       subtitle="Sign in to continue snapping"
       bottomText="Don't have an account?"
       bottomLinkText="Sign up"
@@ -77,8 +77,6 @@ const LoginPage = () => {
         />
 
         <div className="flex justify-end">
-          href="/forgot-password" className="text-[#FFFC00] text-sm
-          font-semibold hover:underline"
           <Link
             to="/forgot-password"
             className="text-[#FFFC00] text-sm font-semibold hover:underline"

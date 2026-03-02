@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { UserPlus, UserCheck, UserX, Loader2 } from 'lucide-react';
+import { UserPlus, UserCheck, Loader2 } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import Avatar from '@/components/ui/Avatar';
 import { cn } from '@/utils/cn';

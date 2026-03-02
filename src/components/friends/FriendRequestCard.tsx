@@ -23,16 +23,26 @@ const FriendRequestCard = ({
   isAccepting,
   isRejecting,
 }: FriendRequestCardProps) => {
-  const { requester } = request;
+  const { user } = request;
   const isProcessing  = isAccepting || isRejecting;
+
+  // Guard: return early if user data is missing
+  if (!user) {
+    console.error('Missing user data in request:', request);
+    return (
+      <div className="flex items-center gap-3 px-4 py-3 bg-white/[0.03] rounded-2xl border border-white/[0.06]">
+        <p className="text-white/30 text-sm">Request data unavailable</p>
+      </div>
+    );
+  }
 
   return (
     <div className="flex items-center gap-3 px-4 py-3 bg-white/[0.03] rounded-2xl border border-white/[0.06]">
-      <Avatar src={requester.avatarUrl} username={requester.username} size="md" />
+      <Avatar src={user.avatarUrl} username={user.username} size="md" />
 
       <div className="flex-1 min-w-0">
         <p className="text-white font-semibold text-sm truncate">
-          {requester.username}
+          {user.username}
         </p>
         <div className="flex items-center gap-1 mt-0.5">
           <Clock className="w-3 h-3 text-white/25" />

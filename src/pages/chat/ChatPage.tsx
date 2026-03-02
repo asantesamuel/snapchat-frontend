@@ -3,10 +3,9 @@ import { useSocket } from "@/hooks/useSocket";
 import ConversationList from "@/components/chat/ConversationList";
 import ConversationPage from "./ConversationPage";
 import CreateGroupModal from "@/components/chat/CreateGroupModal";
-import { MessageSquareDashed } from "lucide-react";
+import { MessageSquareDashed, Camera, Users, MessageCircle } from "lucide-react";
 import { cn } from "@/utils/cn";
 import { useNavigate } from "react-router-dom";
-import { Camera } from "lucide-react";
 
 interface ActiveConversation {
   id: string;
@@ -17,10 +16,9 @@ interface ActiveConversation {
 
 const ChatPage = () => {
   const navigate = useNavigate();
-  // initialise socket connection for the entire chat session
   useSocket();
 
-  const [active, setActive] = useState<ActiveConversation | null>(null);
+  const [active, setActive]                = useState<ActiveConversation | null>(null);
   const [showGroupModal, setShowGroupModal] = useState(false);
 
   const handleSelect = (id: string, isGroup: boolean, name: string) => {
@@ -34,30 +32,69 @@ const ChatPage = () => {
 
   return (
     <div className="flex h-screen bg-black overflow-hidden">
-      {/* ── Sidebar ─────────────────────────────────────── */}
+
+      {/* ── Sidebar ─────────────────────────────────────────────────── */}
       <div
         className={cn(
-          "w-full md:w-80 lg:w-96 shrink-0 flex flex-col",
-          // on mobile: hide sidebar when conversation is active
+          "w-full md:w-80 lg:w-96 shrink-0 flex flex-col border-r border-white/[0.06]",
           active ? "hidden md:flex" : "flex",
         )}
       >
-        <ConversationList
-          activeId={active?.id || null}
-          onSelect={handleSelect}
-          onNewGroup={() => setShowGroupModal(true)}
-        />
-        
-      </div>
-      <button
-          onClick={() => navigate("/camera")}
-          className="w-8 h-8 rounded-full bg-[#FFFC00]/10 flex items-center justify-center hover:bg-[#FFFC00]/20 transition-colors"
-          title="Open camera"
-        >
-          <Camera className="w-4 h-4 text-[#FFFC00]" />
-        </button>
+        {/* conversation list fills all available vertical space */}
+        <div className="flex-1 overflow-hidden">
+          <ConversationList
+            activeId={active?.id || null}
+            onSelect={handleSelect}
+            onNewGroup={() => setShowGroupModal(true)}
+          />
+        </div>
 
-      {/* ── Main panel ──────────────────────────────────── */}
+        {/* ── Bottom action bar — camera lives here ──────────────────── */}
+        <div className="shrink-0 border-t border-white/[0.06] px-4 py-3 flex items-center justify-around bg-black">
+
+          {/* Chats tab — shows active yellow state */}
+          <button
+            className="flex flex-col items-center gap-1"
+            title="Chats"
+          >
+            <div className="w-9 h-9 rounded-2xl bg-[#FFFC00]/10 flex items-center justify-center">
+              <MessageCircle className="w-5 h-5 text-[#FFFC00]" />
+            </div>
+            <span className="text-[10px] text-[#FFFC00] font-bold">Chats</span>
+          </button>
+
+          {/* Camera — centre prominent button, navigates to /camera */}
+          <button
+            onClick={() => navigate("/camera")}
+            className="flex flex-col items-center gap-1 group"
+            title="Open camera"
+          >
+            <div className="w-12 h-12 rounded-full bg-[#FFFC00] flex items-center justify-center shadow-[0_0_20px_rgba(255,252,0,0.35)] group-hover:bg-yellow-300 group-active:scale-90 transition-all">
+              <Camera className="w-6 h-6 text-black" />
+            </div>
+            <span className="text-[10px] text-white/40 font-medium group-hover:text-white/70 transition-colors">
+              Camera
+            </span>
+          </button>
+
+          {/* New Group shortcut */}
+          <button
+            onClick={() => setShowGroupModal(true)}
+            className="flex flex-col items-center gap-1 group"
+            title="New group"
+          >
+            <div className="w-9 h-9 rounded-2xl bg-white/[0.06] flex items-center justify-center group-hover:bg-white/10 transition-colors">
+              <Users className="w-5 h-5 text-white/40 group-hover:text-white/70 transition-colors" />
+            </div>
+            <span className="text-[10px] text-white/40 font-medium group-hover:text-white/70 transition-colors">
+              Group
+            </span>
+          </button>
+
+        </div>
+      </div>
+
+      {/* ── Main panel ──────────────────────────────────────────────── */}
       <div
         className={cn(
           "flex-1 flex flex-col",
@@ -73,7 +110,7 @@ const ChatPage = () => {
             onBack={() => setActive(null)}
           />
         ) : (
-          // empty state for desktop
+          // empty state shown on desktop when no conversation is open
           <div className="flex flex-col items-center justify-center flex-1 gap-4">
             <div className="w-20 h-20 rounded-3xl bg-[#FFFC00]/10 flex items-center justify-center">
               <MessageSquareDashed className="w-10 h-10 text-[#FFFC00]/60" />
@@ -84,17 +121,26 @@ const ChatPage = () => {
                 Select a conversation or start a new one
               </p>
             </div>
+            {/* secondary camera shortcut on the empty state panel */}
+            <button
+              onClick={() => navigate("/camera")}
+              className="mt-2 flex items-center gap-2 px-5 py-2.5 rounded-full bg-[#FFFC00]/10 hover:bg-[#FFFC00]/20 transition-colors group"
+            >
+              <Camera className="w-4 h-4 text-[#FFFC00]" />
+              <span className="text-[#FFFC00] text-sm font-semibold">Open Camera</span>
+            </button>
           </div>
         )}
       </div>
 
-      {/* ── Create group modal ───────────────────────────── */}
+      {/* ── Create group modal ───────────────────────────────────────── */}
       {showGroupModal && (
         <CreateGroupModal
           onClose={() => setShowGroupModal(false)}
           onCreated={handleGroupCreated}
         />
       )}
+
     </div>
   );
 };

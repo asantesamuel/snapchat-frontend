@@ -1,11 +1,11 @@
-import { useState } from 'react';
+import { useState, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
 import toast from 'react-hot-toast';
 import SnapCamera from '@/components/media/SnapCamera';
 import MediaPreview from '@/components/media/MediaPreview';
 import SendSnapModal from '@/components/media/SendSnapModal';
+import ImageUploadModal from '@/components/media/ImageUploadModal';
 import { useMediaUpload } from '@/hooks/useMediaUpload';
-// import { messagesApi } from '@/api/messages.api';
 import { storiesApi } from '@/api/stories.api';
 import { getSocket } from '@/socket/socket.client';
 import { SOCKET_EVENTS } from '@/socket/socket.events';
@@ -13,27 +13,28 @@ import { MessageType } from '@/types/message.types';
 import { StoryType, StoryVisibility } from '@/types/story.types';
 import type { PreviewType } from '@/components/media/MediaPreview';
 
-// all the media state for the captured snap in one interface
 interface CapturedMedia {
-  type:     PreviewType;
-  dataUrl?: string;   // photo only
-  blobUrl?: string;   // video/audio only
-  blob?:    Blob;     // video/audio only
-  mimeType: string;
-  duration?: number;  // video/audio duration in seconds
+  type:      PreviewType;
+  dataUrl?:  string;
+  blobUrl?:  string;
+  blob?:     Blob;
+  mimeType:  string;
+  duration?: number;
 }
 
 type PageState = 'camera' | 'preview' | 'send';
 
 const CameraPage = () => {
   const navigate = useNavigate();
-  const { upload, isUploading, progress } = useMediaUpload();
+  const { upload, isUploading, progress, reset } = useMediaUpload();
 
-  const [pageState, setPageState]     = useState<PageState>('camera');
-  const [captured, setCaptured]       = useState<CapturedMedia | null>(null);
+  const [pageState, setPageState]         = useState<PageState>('camera');
+  const [captured, setCaptured]           = useState<CapturedMedia | null>(null);
   const [showSendModal, setShowSendModal] = useState(false);
+  const [galleryFile, setGalleryFile]     = useState<File | null>(null);
+  const galleryInputRef                   = useRef<HTMLInputElement>(null);
 
-  // ── Capture handlers ───────────────────────────────────────────────
+  // ── Camera capture handlers ────────────────────────────────────────
   const handlePhoto = (dataUrl: string, mimeType: string) => {
     setCaptured({ type: 'photo', dataUrl, mimeType });
     setPageState('preview');
@@ -49,22 +50,47 @@ const CameraPage = () => {
     setPageState('preview');
   };
 
-  // ── Retake — go back to camera ─────────────────────────────────────
+  // ── Gallery picker ─────────────────────────────────────────────────
+  // called by SnapCamera's gallery icon — opens the file input
+  const handleGalleryOpen = () => {
+    galleryInputRef.current?.click();
+  };
+
+  const handleGalleryFileSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    setGalleryFile(file);
+    e.target.value = '';
+  };
+
+  // called when user confirms sending from the gallery modal
+  const handleGalleryConfirm = async (file: File, isEphemeral: boolean) => {
+    const result = await upload(file, file.type);
+    if (!result) return;
+
+    const socket = getSocket();
+    // for gallery uploads, navigate back to chat and send from there
+    // this mirrors how media messages are sent from ConversationPage
+    toast.success('Image uploaded!');
+    setGalleryFile(null);
+    reset();
+    navigate('/chat');
+  };
+
+  // ── Retake ─────────────────────────────────────────────────────────
   const handleRetake = () => {
     setCaptured(null);
     setPageState('camera');
   };
 
-  // ── Post as Story ──────────────────────────────────────────────────
+  // ── Post to story ──────────────────────────────────────────────────
   const handlePostStory = async () => {
     if (!captured) return;
-
     try {
       let blob: Blob;
       let mimeType = captured.mimeType;
 
       if (captured.type === 'photo' && captured.dataUrl) {
-        // convert base64 data URL to Blob
         const response = await fetch(captured.dataUrl);
         blob = await response.blob();
         mimeType = 'image/jpeg';
@@ -85,18 +111,14 @@ const CameraPage = () => {
 
       toast.success('Story posted! 🎉');
       navigate('/stories');
-    } catch (err: unknown) {
-      toast.error((err as unknown as { response: { data: { message: string } } })
-          ?.response?.data?.message ||
-        (err as Error)?.message ||
-        "Failed to post story");
+    } catch (err: any) {
+      toast.error(err?.response?.data?.message || 'Failed to post story');
     }
   };
 
-  // ── Send as Snap ───────────────────────────────────────────────────
+  // ── Send snap ──────────────────────────────────────────────────────
   const handleSendSnap = async (recipientIds: string[], isEphemeral: boolean) => {
     if (!captured) return;
-
     try {
       let blob: Blob;
       let mimeType = captured.mimeType;
@@ -109,26 +131,22 @@ const CameraPage = () => {
         blob = captured.blob;
       } else return;
 
-      // upload the file to S3 first
       const result = await upload(blob, mimeType, captured.duration);
       if (!result) return;
 
-      // determine message type
-      const messageType = captured.type === 'photo'
-        ? MessageType.IMAGE
-        : captured.type === 'video'
-          ? MessageType.VIDEO
-          : MessageType.AUDIO;
+      const messageType =
+        captured.type === 'photo' ? MessageType.IMAGE :
+        captured.type === 'video' ? MessageType.VIDEO :
+        MessageType.AUDIO;
 
-      // send to each recipient via Socket.IO
       const socket = getSocket();
       for (const receiverId of recipientIds) {
         socket.emit(SOCKET_EVENTS.SEND_MESSAGE, {
           receiverId,
-          content:     result.fileUrl,
+          content:    result.fileUrl,
           messageType,
           isEphemeral,
-          mediaId:     result.mediaId,
+          mediaId:    result.mediaId,
         });
       }
 
@@ -136,28 +154,33 @@ const CameraPage = () => {
       toast.success(`Snap sent to ${count} ${count === 1 ? 'friend' : 'friends'}! 🔥`);
       setShowSendModal(false);
       navigate('/chat');
-    } catch (err: unknown) {
-      toast.error((err as unknown as { response: { data: { message: string } } })
-          ?.response?.data?.message ||
-        (err as Error)?.message ||
-        "Failed to send snap");
+    } catch (err: any) {
+      toast.error(err?.response?.data?.message || 'Failed to send snap');
     }
   };
 
-  // ── Render ─────────────────────────────────────────────────────────
   return (
     <>
-      {/* Camera viewfinder */}
+      {/* hidden gallery file input */}
+      <input
+        ref={galleryInputRef}
+        title="Select image from gallery"
+        type="file"
+        accept="image/jpeg,image/png,image/webp"
+        className="hidden"
+        onChange={handleGalleryFileSelect}
+      />
+
       {pageState === 'camera' && (
         <SnapCamera
           onPhoto={handlePhoto}
           onVideo={handleVideo}
           onAudio={handleAudio}
+          onGallery={handleGalleryOpen}
           onClose={() => navigate(-1)}
         />
       )}
 
-      {/* Preview / review captured media */}
       {pageState === 'preview' && captured && (
         <MediaPreview
           type={captured.type}
@@ -172,12 +195,22 @@ const CameraPage = () => {
         />
       )}
 
-      {/* Send to friends modal */}
       {showSendModal && (
         <SendSnapModal
           onSend={handleSendSnap}
           onClose={() => setShowSendModal(false)}
           isUploading={isUploading}
+        />
+      )}
+
+      {/* gallery image preview modal */}
+      {galleryFile && (
+        <ImageUploadModal
+          file={galleryFile}
+          onConfirm={handleGalleryConfirm}
+          onCancel={() => setGalleryFile(null)}
+          isUploading={isUploading}
+          uploadProgress={progress}
         />
       )}
     </>

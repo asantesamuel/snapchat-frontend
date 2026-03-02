@@ -1,14 +1,24 @@
 import { useState, useRef } from 'react';
 import { Send, Flame } from 'lucide-react';
 import { cn } from '@/utils/cn';
+import MediaUploadWidget from '@/components/media/MediaUploadWidget';
+import { MessageType } from '@/types/message.types';
 
 interface MessageInputProps {
-  onSend:    (content: string, isEphemeral: boolean) => void;
-  onTyping:  () => void;
+  onSend:       (content: string, isEphemeral: boolean) => void;
+  onTyping:     () => void;
+  onMediaSent?: (
+    fileUrl:     string,
+    mediaId:     string,
+    messageType: MessageType,
+    isEphemeral: boolean
+  ) => void;
   disabled?: boolean;
 }
 
-const MessageInput = ({ onSend, onTyping, disabled }: MessageInputProps) => {
+const MessageInput = ({
+  onSend, onTyping, onMediaSent, disabled
+}: MessageInputProps) => {
   const [value, setValue]             = useState('');
   const [isEphemeral, setIsEphemeral] = useState(false);
   const textareaRef                   = useRef<HTMLTextAreaElement>(null);
@@ -16,7 +26,6 @@ const MessageInput = ({ onSend, onTyping, disabled }: MessageInputProps) => {
   const handleChange = (e: React.ChangeEvent<HTMLTextAreaElement>) => {
     setValue(e.target.value);
     onTyping();
-    // auto-grow the textarea up to 5 lines
     if (textareaRef.current) {
       textareaRef.current.style.height = 'auto';
       textareaRef.current.style.height =
@@ -33,7 +42,6 @@ const MessageInput = ({ onSend, onTyping, disabled }: MessageInputProps) => {
   };
 
   const handleKeyDown = (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
-    // Enter sends, Shift+Enter inserts a newline
     if (e.key === 'Enter' && !e.shiftKey) {
       e.preventDefault();
       handleSend();
@@ -45,17 +53,25 @@ const MessageInput = ({ onSend, onTyping, disabled }: MessageInputProps) => {
   return (
     <div className="px-4 py-3 border-t border-white/[0.06] bg-black shrink-0">
       <div className={cn(
-        'flex items-end gap-2 rounded-2xl border transition-all duration-200 px-3 py-2',
+        'flex items-end gap-1 rounded-2xl border transition-all duration-200 px-3 py-2',
         isEphemeral
           ? 'border-red-500/40 bg-red-500/5'
           : 'border-white/[0.08] bg-white/[0.03]',
       )}>
 
-        {/* ephemeral toggle button */}
+        {/* image attach button — opens gallery picker */}
+        {onMediaSent && (
+          <MediaUploadWidget
+            onSent={onMediaSent}
+            disabled={disabled}
+          />
+        )}
+
+        {/* ephemeral toggle */}
         <button
           type="button"
           onClick={() => setIsEphemeral(v => !v)}
-          title={isEphemeral ? 'Snap mode ON' : 'Enable Snap mode'}
+          title={isEphemeral ? 'Snap mode ON' : 'Enable snap mode'}
           className={cn(
             'mb-1 p-1.5 rounded-full transition-all shrink-0',
             isEphemeral
@@ -66,7 +82,7 @@ const MessageInput = ({ onSend, onTyping, disabled }: MessageInputProps) => {
           <Flame className="w-5 h-5" />
         </button>
 
-        {/* auto-growing textarea */}
+        {/* textarea */}
         <textarea
           ref={textareaRef}
           value={value}
@@ -80,8 +96,8 @@ const MessageInput = ({ onSend, onTyping, disabled }: MessageInputProps) => {
 
         {/* send button */}
         <button
-        title='Send message'
           type="button"
+          title="Send message"
           onClick={handleSend}
           disabled={!canSend}
           className={cn(
@@ -95,11 +111,10 @@ const MessageInput = ({ onSend, onTyping, disabled }: MessageInputProps) => {
         </button>
       </div>
 
-      {/* ephemeral hint */}
       {isEphemeral && (
         <p className="text-red-400/50 text-xs text-center mt-1.5 flex items-center justify-center gap-1">
           <Flame className="w-3 h-3" />
-          This message disappears after the recipient views it
+          Disappears after the recipient views it
         </p>
       )}
     </div>

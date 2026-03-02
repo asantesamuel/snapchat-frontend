@@ -1,18 +1,15 @@
-import { useEffect, useRef, useState } from 'react';
-import {
-  ArrowLeft, Users, MoreVertical,
-  Info
-} from 'lucide-react';
-import { useAuthStore } from '@/store/auth.store';
-import { useConversation } from '@/hooks/useConversation';
-import MessageBubble from '@/components/chat/MessageBubble';
-import MediaMessageBubble from '@/components/chat/MediaMessageBubble';
-import MessageInput from '@/components/chat/MessageInput';
-import TypingIndicator from '@/components/chat/TypingIndicator';
-import GroupInfoPanel from '@/components/chat/GroupInfoPanel';
-import Avatar from '@/components/ui/Avatar';
-import { MessageType } from '@/types/message.types';
-import { cn } from '@/utils/cn';
+import { useEffect, useRef, useState } from "react";
+import { ArrowLeft, Users, MoreVertical, Info } from "lucide-react";
+import { useAuthStore } from "@/store/auth.store";
+import { useConversation } from "@/hooks/useConversation";
+import MessageBubble from "@/components/chat/MessageBubble";
+import MediaMessageBubble from "@/components/chat/MediaMessageBubble";
+import MessageInput from "@/components/chat/MessageInput";
+import TypingIndicator from "@/components/chat/TypingIndicator";
+import GroupInfoPanel from "@/components/chat/GroupInfoPanel";
+import Avatar from "@/components/ui/Avatar";
+import { MessageType } from "@/types/message.types";
+import { cn } from "@/utils/cn";
 
 // ConversationPage is the main chat view
 // Props received from ChatPage:
@@ -25,10 +22,10 @@ import { cn } from '@/utils/cn';
 
 interface ConversationPageProps {
   conversationId: string;
-  isGroup:        boolean;
-  name:           string;
-  avatarUrl?:     string | null;
-  onBack?:        () => void;
+  isGroup: boolean;
+  name: string;
+  avatarUrl?: string | null;
+  onBack?: () => void;
 }
 
 const ConversationPage = ({
@@ -38,8 +35,8 @@ const ConversationPage = ({
   avatarUrl,
   onBack,
 }: ConversationPageProps) => {
-  const { user }           = useAuthStore();
-  const bottomRef          = useRef<HTMLDivElement>(null);
+  const { user } = useAuthStore();
+  const bottomRef = useRef<HTMLDivElement>(null);
   const [showGroupInfo, setShowGroupInfo] = useState(false);
 
   const {
@@ -54,7 +51,7 @@ const ConversationPage = ({
   // ── Auto-scroll to newest message ───────────────────────────────
   // runs whenever the messages array grows or typing indicator appears
   useEffect(() => {
-    bottomRef.current?.scrollIntoView({ behavior: 'smooth' });
+    bottomRef.current?.scrollIntoView({ behavior: "smooth" });
   }, [messages.length, isAnyoneTyping]);
 
   // ── Handle send from MessageInput ────────────────────────────────
@@ -66,13 +63,10 @@ const ConversationPage = ({
 
   return (
     <div className="flex h-full bg-black overflow-hidden">
-
       {/* ── Main conversation column ─────────────────────────────── */}
       <div className="flex flex-col flex-1 min-w-0 overflow-hidden">
-
         {/* ── Header ────────────────────────────────────────────── */}
         <div className="flex items-center gap-3 px-4 py-3 border-b border-white/[0.06] bg-black/95 backdrop-blur-sm shrink-0">
-
           {/* back button — mobile only */}
           {onBack && (
             <button
@@ -98,10 +92,11 @@ const ConversationPage = ({
 
             <div className="min-w-0 flex-1">
               <button
-                onClick={() => isGroup && setShowGroupInfo(v => !v)}
+                onClick={() => isGroup && setShowGroupInfo((v) => !v)}
                 className={cn(
-                  'text-white font-bold text-sm truncate block text-left w-full',
-                  isGroup && 'hover:text-[#FFFC00] transition-colors cursor-pointer'
+                  "text-white font-bold text-sm truncate block text-left w-full",
+                  isGroup &&
+                    "hover:text-[#FFFC00] transition-colors cursor-pointer",
                 )}
               >
                 {name}
@@ -110,8 +105,8 @@ const ConversationPage = ({
                 {isAnyoneTyping
                   ? `${typingUsernames[0]} is typing...`
                   : isGroup
-                    ? 'Group chat'
-                    : 'Online'}
+                    ? "Group chat"
+                    : "Online"}
               </p>
             </div>
           </div>
@@ -120,19 +115,19 @@ const ConversationPage = ({
           <div className="flex items-center gap-1 shrink-0">
             {isGroup && (
               <button
-                onClick={() => setShowGroupInfo(v => !v)}
+                onClick={() => setShowGroupInfo((v) => !v)}
                 title="Group info"
                 className={cn(
-                  'w-8 h-8 rounded-full flex items-center justify-center transition-colors',
+                  "w-8 h-8 rounded-full flex items-center justify-center transition-colors",
                   showGroupInfo
-                    ? 'bg-[#FFFC00]/10 text-[#FFFC00]'
-                    : 'hover:bg-white/[0.06] text-white/40'
+                    ? "bg-[#FFFC00]/10 text-[#FFFC00]"
+                    : "hover:bg-white/[0.06] text-white/40",
                 )}
               >
                 <Info className="w-4 h-4" />
               </button>
             )}
-            <button 
+            <button
               title="More options"
               className="w-8 h-8 rounded-full flex items-center justify-center hover:bg-white/[0.06] transition-colors text-white/40"
             >
@@ -161,7 +156,7 @@ const ConversationPage = ({
                 </p>
                 <p className="text-white/30 text-sm mt-1">
                   {isGroup
-                    ? 'Send the first message to get the conversation started'
+                    ? "Send the first message to get the conversation started"
                     : `Send ${name} a message or a snap`}
                 </p>
               </div>
@@ -172,11 +167,12 @@ const ConversationPage = ({
             // do not repeat the avatar on every bubble
             <div className="flex flex-col gap-0.5">
               {messages.map((message, index) => {
-                const isMine     = message.senderId === user?.id;
+                const isMine = message.senderId === user?.id;
                 const prevMessage = messages[index - 1];
                 // only show avatar for the FIRST message in a consecutive
                 // run from the same sender — reduces visual noise
-                const showAvatar = isGroup &&
+                const showAvatar =
+                  isGroup &&
                   !isMine &&
                   prevMessage?.senderId !== message.senderId;
 
@@ -221,6 +217,11 @@ const ConversationPage = ({
         <MessageInput
           onSend={handleSend}
           onTyping={onTyping}
+          onMediaSent={(fileUrl, mediaId, messageType, isEphemeral) => {
+            // media messages use the file URL as content
+            // the mediaId links to the media record on the backend
+            sendMessage(fileUrl, isEphemeral, messageType, mediaId);
+          }}
         />
       </div>
 
@@ -235,10 +236,12 @@ const ConversationPage = ({
             onClick={() => setShowGroupInfo(false)}
           />
           {/* panel */}
-          <div className={cn(
-            'md:relative fixed inset-y-0 right-0 z-40',
-            'md:z-auto md:flex'
-          )}>
+          <div
+            className={cn(
+              "md:relative fixed inset-y-0 right-0 z-40",
+              "md:z-auto md:flex",
+            )}
+          >
             <GroupInfoPanel
               groupId={conversationId}
               onClose={() => setShowGroupInfo(false)}

@@ -39,6 +39,8 @@ const ConversationPage = ({
   const bottomRef = useRef<HTMLDivElement>(null);
   const [showGroupInfo, setShowGroupInfo] = useState(false);
 
+
+
   const {
     messages,
     sendMessage,
@@ -166,9 +168,10 @@ const ConversationPage = ({
             // grouped so consecutive messages from the same sender
             // do not repeat the avatar on every bubble
             <div className="flex flex-col gap-0.5">
-              {messages.map((message, index) => {
+              {/** dedupe messages by id before rendering */}
+              {Array.from(new Map(messages.map(m => [m.id, m])).values()).map((message, index, arr) => {
                 const isMine = message.senderId === user?.id;
-                const prevMessage = messages[index - 1];
+                const prevMessage = arr[index - 1];
                 // only show avatar for the FIRST message in a consecutive
                 // run from the same sender — reduces visual noise
                 const showAvatar =

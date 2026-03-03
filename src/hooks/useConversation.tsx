@@ -1,4 +1,5 @@
 import { useEffect, useCallback, useRef } from 'react';
+import toast from 'react-hot-toast';
 import { getSocket } from '@/socket/socket.client';
 import { SOCKET_EVENTS } from '@/socket/socket.events';
 import { useChatStore } from '@/store/chat.store';
@@ -29,6 +30,8 @@ export const useConversation = (
     typingUsers,
     setTyping,
   } = useChatStore();
+
+
 
   // typing state refs — using refs not state because they do not need
   // to trigger re-renders, they just track timing between keystrokes
@@ -107,7 +110,10 @@ export const useConversation = (
     };
 
     socket.on(event, handleNewMessage);
-    return () => { socket.off(event, handleNewMessage); };
+
+    return () => {
+      socket.off(event, handleNewMessage);
+    };
   }, [conversationId, isGroup, user?.id, appendMessage]);
 
   // ── 4. Listen for read receipts ──────────────────────────────────
@@ -172,6 +178,11 @@ export const useConversation = (
     const socket = getSocket();
 
     if (isGroup) {
+      if (!conversationId || conversationId.trim() === '') {
+        console.error('sendMessage: groupId is missing or empty', { conversationId, isGroup });
+        toast.error('Error: Group missing. Please try again.');
+        return;
+      }
       const payload: SendGroupMessagePayload = {
         groupId: conversationId,
         content,
@@ -181,6 +192,11 @@ export const useConversation = (
       };
       socket.emit(SOCKET_EVENTS.SEND_GROUP_MESSAGE, payload);
     } else {
+      if (!conversationId || conversationId.trim() === '') {
+        console.error('sendMessage: receiverId is missing or empty', { conversationId, isGroup });
+        toast.error('Error: Recipient missing. Please try again.');
+        return;
+      }
       const payload: SendMessagePayload = {
         receiverId: conversationId,
         content,

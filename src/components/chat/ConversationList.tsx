@@ -104,9 +104,9 @@ const ConversationList = ({
               </div>
             </div>
           ) : (
-            filtered.map(conv => (
+            filtered.map((conv, idx) => (
               <ConversationItem
-                key={conv.conversationId}
+                key={`${conv.conversationId}-${conv.isGroup ? 'group' : 'dm'}-${idx}`}
                 conversation={conv}
                 isActive={activeId === conv.conversationId}
                 onClick={() => onSelect(

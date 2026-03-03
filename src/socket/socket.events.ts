@@ -6,7 +6,7 @@ export const SOCKET_EVENTS = {
   // client → server
   JOIN_CONVERSATION:    'join_conversation',
   JOIN_GROUP:           'join_group',
-  SEND_MESSAGE:         'send_message',
+  SEND_MESSAGE:         'send_direct_message',
   SEND_GROUP_MESSAGE:   'send_group_message',
   TYPING_START:         'typing_start',
   TYPING_STOP:          'typing_stop',
@@ -14,7 +14,7 @@ export const SOCKET_EVENTS = {
   LEAVE_CONVERSATION:   'leave_conversation',
 
   // server → client
-  NEW_MESSAGE:          'new_message',
+  NEW_MESSAGE:          'new_direct_message',
   NEW_MESSAGE_NOTIF:    'new_message_notification',
   NEW_GROUP_MESSAGE:    'new_group_message',
   USER_TYPING:          'user_typing',

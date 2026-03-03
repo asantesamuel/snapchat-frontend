@@ -1,4 +1,5 @@
 import { useEffect, useCallback } from 'react';
+import toast from 'react-hot-toast';
 import { getSocket } from '@/socket/socket.client';
 import { SOCKET_EVENTS } from '@/socket/socket.events';
 import { useChatStore } from '@/store/chat.store';
@@ -35,7 +36,8 @@ export const useMessages = (conversationId: string, isGroup = false) => {
           : await messagesApi.getDirectHistory(conversationId);
         setMessages(conversationId, data.messages);
       } catch (err) {
-        console.error('Failed to load message history:', err);
+        // console.error('Failed to load message history:', err);
+        console.log('Error details:', (err as any)?.response?.data || err);
       }
     };
 
@@ -61,26 +63,10 @@ export const useMessages = (conversationId: string, isGroup = false) => {
   }, [conversationId, isGroup]);
 
   // ── Listen for incoming messages ───────────────────────────────────
-  useEffect(() => {
-    const socket = getSocket();
-    const event = isGroup
-      ? SOCKET_EVENTS.NEW_GROUP_MESSAGE
-      : SOCKET_EVENTS.NEW_MESSAGE;
-
-    const handleNewMessage = (message: Message) => {
-      // determine which conversation this message belongs to
-      const convId = isGroup
-        ? (message.groupId as string)
-        : message.senderId === user?.id
-          ? (message.receiverId as string)
-          : message.senderId;
-
-      appendMessage(convId, message);
-    };
-
-    socket.on(event, handleNewMessage);
-    return () => { socket.off(event, handleNewMessage); };
-  }, [conversationId, isGroup, user?.id, appendMessage]);
+  // NOTE: Message listening is handled by useConversation hook
+  // This prevents duplicate message additions. useConversation is responsible
+  // for appending incoming messages to the store for the active conversation.
+  // We skip the listener here to avoid duplication.
 
   // ── Listen for read receipts ───────────────────────────────────────
   useEffect(() => {
@@ -117,12 +103,26 @@ export const useMessages = (conversationId: string, isGroup = false) => {
   // ── Send a direct message ──────────────────────────────────────────
   const sendMessage = useCallback((payload: SendMessagePayload) => {
     const socket = getSocket();
+    // validate payload for direct messages
+    if (!isGroup && !payload.receiverId) {
+      const errorMsg = 'sendMessage called without receiverId for direct message';
+      console.error(errorMsg, payload);
+      toast.error('Error: Message recipient missing. Please try again.');
+      return;
+    }
     socket.emit(SOCKET_EVENTS.SEND_MESSAGE, payload);
-  }, []);
+  }, [isGroup]);
 
   // ── Send a group message ───────────────────────────────────────────
   const sendGroupMessage = useCallback((payload: SendGroupMessagePayload) => {
     const socket = getSocket();
+    // validate group payload
+    if (!payload.groupId) {
+      const errorMsg = 'sendGroupMessage called without groupId';
+      console.error(errorMsg, payload);
+      toast.error('Error: Group ID missing. Please try again.');
+      return;
+    }
     socket.emit(SOCKET_EVENTS.SEND_GROUP_MESSAGE, payload);
   }, []);
 

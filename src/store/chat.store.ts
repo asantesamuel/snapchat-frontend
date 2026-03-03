@@ -29,15 +29,19 @@ export const useChatStore = create<ChatState>((set) => ({
     })),
 
   appendMessage: (conversationId, message) =>
-    set((state) => ({
-      messages: {
-        ...state.messages,
-        [conversationId]: [
-          ...(state.messages[conversationId] || []),
-          message,
-        ],
-      },
-    })),
+    set((state) => {
+      const existing = state.messages[conversationId] || [];
+      // skip if message with same id already present
+      if (existing.some(m => m.id === message.id)) {
+        return { messages: state.messages };
+      }
+      return {
+        messages: {
+          ...state.messages,
+          [conversationId]: [...existing, message],
+        },
+      };
+    }),
 
   updateMessageStatus: (messageId, updates) =>
     set((state) => {

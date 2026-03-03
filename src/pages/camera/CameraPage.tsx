@@ -139,8 +139,20 @@ const CameraPage = () => {
         captured.type === 'video' ? MessageType.VIDEO :
         MessageType.AUDIO;
 
+      // validate recipients before sending
+      if (!recipientIds || recipientIds.length === 0) {
+        console.error('handleSendSnap: no recipient IDs provided', { recipientIds });
+        toast.error('Error: No recipients selected. Please try again.');
+        return;
+      }
+
       const socket = getSocket();
       for (const receiverId of recipientIds) {
+        if (!receiverId) {
+          console.error('handleSendSnap: invalid receiverId', { receiverId });
+          toast.error('Error: Invalid recipient. Please try again.');
+          return;
+        }
         socket.emit(SOCKET_EVENTS.SEND_MESSAGE, {
           receiverId,
           content:    result.fileUrl,

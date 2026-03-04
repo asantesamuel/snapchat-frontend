@@ -137,6 +137,7 @@ export const useConversation = (
     const socket = getSocket();
 
     const handleDeleted = ({ messageId }: { messageId: string }) => {
+      console.log('[Socket] MESSAGE_DELETED received:', messageId);
       updateMessageStatus(messageId, {
         status:  MessageStatus.DELETED,
         content: null,

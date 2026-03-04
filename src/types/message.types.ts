@@ -21,6 +21,7 @@ export interface Message {
   groupId: string | null;
   content: string | null;
   messageType: MessageType;
+  mediaId: string | null;
   status: MessageStatus;
   isEphemeral: boolean;
   sentAt: string;

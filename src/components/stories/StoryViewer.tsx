@@ -11,14 +11,15 @@ import StoryProgressBar from './StoryProgressBar';
 import type { StoryGroup } from '@/types/story.types';
 import { StoryType, StoryVisibility } from '@/types/story.types';
 import { useAuthStore } from '@/store/auth.store';
+import { storiesApi } from '@/api/stories.api';
 
-// ── State machine ─────────────────────────────────────────────────────
+// ── State machine ──────────────────────────────────────────────────────────
 
 interface ViewerState {
-  authorIndex: number;   // which story group (friend) we are viewing
-  storyIndex:  number;   // which story within that group
-  progress:    number;   // 0.0 to 1.0 — drives the progress bar segment
-  isPaused:    boolean;  // true while user holds the screen (long press)
+  authorIndex: number;
+  storyIndex:  number;
+  progress:    number;
+  isPaused:    boolean;
 }
 
 type ViewerAction =
@@ -29,8 +30,6 @@ type ViewerAction =
   | { type: 'RESUME' }
   | { type: 'GO_TO'; authorIndex: number; storyIndex: number };
 
-// The reducer handles ALL state transitions atomically
-// No transition can leave the state in an inconsistent intermediate form
 const createReducer = (groups: StoryGroup[]) =>
   (state: ViewerState, action: ViewerAction): ViewerState => {
     switch (action.type) {
@@ -39,12 +38,9 @@ const createReducer = (groups: StoryGroup[]) =>
         const currentGroup = groups[state.authorIndex];
         if (!currentGroup) return state;
 
-        // if there are more stories by this author, advance to the next one
         if (state.storyIndex < currentGroup.stories.length - 1) {
           return { ...state, storyIndex: state.storyIndex + 1, progress: 0 };
         }
-
-        // otherwise advance to the next author
         if (state.authorIndex < groups.length - 1) {
           return {
             ...state,
@@ -53,9 +49,6 @@ const createReducer = (groups: StoryGroup[]) =>
             progress:    0,
           };
         }
-
-        // we are at the end of all stories — signal close by returning
-        // a special sentinel state (authorIndex === groups.length)
         return { ...state, authorIndex: groups.length, storyIndex: 0, progress: 0 };
       }
 
@@ -72,7 +65,6 @@ const createReducer = (groups: StoryGroup[]) =>
             progress:    0,
           };
         }
-        // already at the very first story — restart it
         return { ...state, progress: 0 };
       }
 
@@ -99,19 +91,17 @@ const createReducer = (groups: StoryGroup[]) =>
     }
   };
 
-// ── Component ─────────────────────────────────────────────────────────
+// ── Component ──────────────────────────────────────────────────────────────
 
 interface StoryViewerProps {
-  groups:         StoryGroup[];
-  initialAuthor:  number;         // which author to start with
-  onClose:        () => void;
-  onView:         (storyId: string) => void;
-  onDelete:       (storyId: string) => void;
+  groups:        StoryGroup[];
+  initialAuthor: number;
+  onClose:       () => void;
+  onView:        (storyId: string) => void;
+  onDelete:      (storyId: string) => void;
 }
 
-// default duration for image stories in milliseconds
 const IMAGE_DURATION_MS = 5000;
-// how often the progress timer ticks in milliseconds
 const TICK_MS           = 100;
 
 const StoryViewer = ({
@@ -121,11 +111,15 @@ const StoryViewer = ({
   onView,
   onDelete,
 }: StoryViewerProps) => {
-  const { user: me }   = useAuthStore();
-  const reducer        = useCallback((state: ViewerState, action: ViewerAction) => createReducer(groups)(state, action), [groups]);
-  const videoRef       = useRef<HTMLVideoElement>(null);
-  const holdTimerRef   = useRef<ReturnType<typeof setTimeout> | null>(null);
-  const progressTimerRef = useRef<ReturnType<typeof setInterval> | null>(null);
+  const { user: me } = useAuthStore();
+  const reducer      = useCallback(
+    (state: ViewerState, action: ViewerAction) => createReducer(groups)(state, action),
+    [groups]
+  );
+
+  const videoRef         = useRef<HTMLVideoElement>(null);
+  const holdTimerRef     = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const progressRef      = useRef(0);
 
   const [state, dispatch] = useReducer(reducer, {
     authorIndex: initialAuthor,
@@ -134,70 +128,103 @@ const StoryViewer = ({
     isPaused:    false,
   });
 
-  // ── Derived values ────────────────────────────────────────────────
+  // ── Presigned URL state ──────────────────────────────────────────────────
+  // WHY we need this:
+  // story.mediaUrl is a bare S3 object URL — no AWS signature parameters.
+  // Private S3 buckets return Access Denied for bare URLs, so using
+  // story.mediaUrl directly as <img src> or <video src> results in a
+  // dark screen. We call GET /api/stories/:id/url to receive a presigned
+  // URL with a valid AWS4-HMAC-SHA256 signature that S3 will accept.
+  //
+  // WHY a Map keyed by storyId:
+  // The viewer can navigate between multiple stories. Fetching a new
+  // presigned URL on every story change (even when navigating back to
+  // a story already seen) would be wasteful. Caching by storyId means
+  // each story's URL is fetched once per viewer session. The presigned
+  // URL is valid for 1 hour which is far longer than a typical viewing
+  // session, so cached URLs do not expire during use.
+  const [presignedUrls, setPresignedUrls] = useState<Map<string, string>>(new Map());
+  const [isLoadingUrl, setIsLoadingUrl]   = useState(false);
+
+  // ── Derived values ───────────────────────────────────────────────────────
   const currentGroup = groups[state.authorIndex];
   const currentStory = currentGroup?.stories[state.storyIndex];
   const isFinished   = state.authorIndex >= groups.length;
   const isMyStory    = currentStory?.author.id === me?.id;
 
-  // story duration in ms: use video duration if available, else 5s for images
+  // the resolved URL to use as src — presigned if available, null while loading
+  const mediaUrl = currentStory ? (presignedUrls.get(currentStory.id) ?? null) : null;
+
   const durationMs = currentStory
     ? (currentStory.duration
         ? Math.min(currentStory.duration, 60) * 1000
         : IMAGE_DURATION_MS)
     : IMAGE_DURATION_MS;
 
-  // ── Close when finished ───────────────────────────────────────────
+  // ── Fetch presigned URL whenever the active story changes ────────────────
+  // Pauses progress while loading so the progress bar does not advance
+  // while the image is still being fetched and the screen is dark.
+  useEffect(() => {
+    if (!currentStory) return;
+
+    // already cached — no need to fetch again
+    if (presignedUrls.has(currentStory.id)) return;
+
+    let cancelled = false;
+
+    const fetchUrl = async () => {
+      setIsLoadingUrl(true);
+      // pause progress bar while URL is loading so it does not advance
+      // during the dark screen before the image appears
+      dispatch({ type: 'PAUSE' });
+
+      try {
+        const { url } = await storiesApi.getSecureUrl(currentStory.id);
+
+        if (cancelled) return;
+
+        setPresignedUrls(prev => new Map(prev).set(currentStory.id, url));
+        console.log('[Story] Presigned URL fetched:', {
+          storyId: currentStory.id,
+          url,
+        });
+      } catch (err: any) {
+        if (cancelled) return;
+        const status = err?.response?.status;
+        if (status === 410) {
+          // story expired between feed load and tap — skip to next
+          console.warn('[Story] Story expired, skipping:', currentStory.id);
+          dispatch({ type: 'NEXT_STORY' });
+        } else {
+          console.error('[Story] Failed to fetch presigned URL:', err);
+          // skip this story rather than showing a dark screen forever
+          dispatch({ type: 'NEXT_STORY' });
+        }
+      } finally {
+        if (!cancelled) {
+          setIsLoadingUrl(false);
+          dispatch({ type: 'RESUME' });
+        }
+      }
+    };
+
+    fetchUrl();
+
+    return () => { cancelled = true; };
+  }, [currentStory?.id]);
+
+  // ── Close when finished ──────────────────────────────────────────────────
   useEffect(() => {
     if (isFinished) onClose();
   }, [isFinished, onClose]);
 
-  // ── Mark story as viewed ──────────────────────────────────────────
-  // fires once each time the active story changes
+  // ── Mark story as viewed ─────────────────────────────────────────────────
   useEffect(() => {
     if (!currentStory) return;
     onView(currentStory.id);
   }, [currentStory?.id]);
 
-  // ── Progress timer ────────────────────────────────────────────────
-  // runs every TICK_MS milliseconds
-  // increments progress proportionally to the story's duration
-  // when progress reaches 1.0, dispatches NEXT_STORY
-  useEffect(() => {
-    if (!currentStory || state.isPaused) {
-      if (progressTimerRef.current) clearInterval(progressTimerRef.current);
-      return;
-    }
-
-    // reset video for video stories
-    if (currentStory.storyType === StoryType.VIDEO && videoRef.current) {
-      videoRef.current.currentTime = 0;
-      videoRef.current.play().catch(() => {});
-    }
-
-    const increment = TICK_MS / durationMs;
-
-    progressTimerRef.current = setInterval(() => {
-      dispatch((prev: any) => {
-        // this pattern passes a function to dispatch which reads current state
-        // we need it because setInterval captures a stale closure otherwise
-        return { type: 'SET_PROGRESS' };
-      });
-
-      // we manage progress directly instead of via the reducer closure
-      // to avoid stale closures inside setInterval
-    }, TICK_MS);
-
-    return () => {
-      if (progressTimerRef.current) clearInterval(progressTimerRef.current);
-    };
-  }, [currentStory?.id, state.isPaused, durationMs]);
-
-  // ── Self-contained progress counter using a ref ───────────────────
-  // Using a ref for the actual progress counter avoids the stale closure
-  // problem with setInterval. The ref always has the current value.
-  const progressRef = useRef(0);
-
+  // ── Progress timer ───────────────────────────────────────────────────────
   useEffect(() => {
     progressRef.current = 0;
     if (!currentStory) return;
@@ -218,18 +245,13 @@ const StoryViewer = ({
     }, TICK_MS);
 
     return () => clearInterval(timer);
-  // Re-run when story changes OR pause state changes
   }, [currentStory?.id, state.isPaused, durationMs]);
 
-  // ── Touch / click handlers ────────────────────────────────────────
-  // tap left third of screen → go back
-  // tap right two thirds → go forward
-  // hold → pause
-
+  // ── Touch / click handlers ───────────────────────────────────────────────
   const handlePointerDown = () => {
     holdTimerRef.current = setTimeout(() => {
       dispatch({ type: 'PAUSE' });
-    }, 200); // 200ms hold to pause
+    }, 200);
   };
 
   const handlePointerUp = () => {
@@ -239,10 +261,7 @@ const StoryViewer = ({
 
   const handleTap = (e: React.MouseEvent<HTMLDivElement>) => {
     if (state.isPaused) return;
-    const x           = e.clientX;
-    const width       = e.currentTarget.offsetWidth;
-    const tapFraction = x / width;
-
+    const tapFraction = e.clientX / e.currentTarget.offsetWidth;
     if (tapFraction < 0.3) {
       dispatch({ type: 'PREV_STORY' });
     } else {
@@ -257,9 +276,6 @@ const StoryViewer = ({
 
   return (
     <div className="fixed inset-0 bg-black z-50 flex items-center justify-center">
-      {/* ── Story card ──────────────────────────────────────────── */}
-      {/* centred with max width so it looks like a phone-sized story */}
-      {/* on large monitors rather than stretching edge to edge       */}
       <div
         className="relative w-full h-full md:max-w-sm md:max-h-[calc(100vh-2rem)] md:rounded-3xl overflow-hidden bg-black"
         onPointerDown={handlePointerDown}
@@ -268,34 +284,46 @@ const StoryViewer = ({
         onClick={handleTap}
         style={{ userSelect: 'none' }}
       >
-        {/* ── Media ─────────────────────────────────────────────── */}
-        {isImage && (
-          <img
-            src={currentStory.mediaUrl}
-            alt="Story"
-            className="w-full h-full object-cover"
-            draggable={false}
-          />
+        {/* ── Media ───────────────────────────────────────────────── */}
+        {/* mediaUrl is null while the presigned URL is being fetched.  */}
+        {/* We show a loading spinner instead of a dark blank screen.   */}
+        {!mediaUrl ? (
+          <div className="w-full h-full flex items-center justify-center bg-black">
+            <div className="w-10 h-10 rounded-full border-2 border-white/20 border-t-white/80 animate-spin" />
+          </div>
+        ) : (
+          <>
+            {isImage && (
+              <img
+                key={currentStory.id}
+                src={mediaUrl}
+                alt="Story"
+                className="w-full h-full object-cover"
+                draggable={false}
+              />
+            )}
+
+            {isVideo && (
+              <video
+                key={currentStory.id}
+                ref={videoRef}
+                src={mediaUrl}
+                className="w-full h-full object-cover"
+                playsInline
+                muted={false}
+                autoPlay
+                loop={false}
+                onEnded={() => dispatch({ type: 'NEXT_STORY' })}
+              />
+            )}
+          </>
         )}
 
-        {isVideo && (
-          <video
-            ref={videoRef}
-            src={currentStory.mediaUrl}
-            className="w-full h-full object-cover"
-            playsInline
-            muted={false}
-            autoPlay
-            loop={false}
-            onEnded={() => dispatch({ type: 'NEXT_STORY' })}
-          />
-        )}
-
-        {/* dark gradient overlays at top and bottom for readability */}
+        {/* dark gradient overlays for readability */}
         <div className="absolute inset-x-0 top-0 h-32 bg-gradient-to-b from-black/70 via-black/20 to-transparent pointer-events-none" />
         <div className="absolute inset-x-0 bottom-0 h-40 bg-gradient-to-t from-black/70 via-black/20 to-transparent pointer-events-none" />
 
-        {/* ── Progress bars ──────────────────────────────────────── */}
+        {/* ── Progress bars ────────────────────────────────────────── */}
         <div className="absolute top-0 left-0 right-0 z-10 pointer-events-none">
           <StoryProgressBar
             totalSegments={currentGroup.stories.length}
@@ -304,10 +332,9 @@ const StoryViewer = ({
           />
         </div>
 
-        {/* ── Header ─────────────────────────────────────────────── */}
+        {/* ── Header ──────────────────────────────────────────────── */}
         <div className="absolute top-6 left-0 right-0 px-4 z-10 flex items-center justify-between mt-1">
           <div className="flex items-center gap-2.5">
-            {/* author avatar */}
             <div className="w-9 h-9 rounded-full overflow-hidden bg-[#FFFC00] flex items-center justify-center ring-2 ring-white/30">
               {currentGroup.author.avatarUrl ? (
                 <img
@@ -327,7 +354,6 @@ const StoryViewer = ({
                 {currentGroup.author.username}
               </p>
               <div className="flex items-center gap-2 mt-0.5">
-                {/* expiry countdown */}
                 <div className="flex items-center gap-1">
                   <Clock className={cn(
                     'w-3 h-3',
@@ -345,7 +371,6 @@ const StoryViewer = ({
                   </span>
                 </div>
 
-                {/* visibility badge */}
                 {currentStory.visibility === StoryVisibility.CUSTOM ? (
                   <div className="flex items-center gap-1">
                     <Lock className="w-3 h-3 text-white/40" />
@@ -361,9 +386,7 @@ const StoryViewer = ({
             </div>
           </div>
 
-          {/* right-side controls */}
           <div className="flex items-center gap-2">
-            {/* view count — only visible on own stories */}
             {isMyStory && (
               <div className="flex items-center gap-1 bg-black/30 rounded-full px-2.5 py-1.5 backdrop-blur-sm">
                 <Eye className="w-3.5 h-3.5 text-white/70" />
@@ -373,12 +396,11 @@ const StoryViewer = ({
               </div>
             )}
 
-            {/* delete button — only visible on own stories */}
             {isMyStory && (
               <button
-               title='delete-story'
+                title="delete-story"
                 onClick={(e) => {
-                  e.stopPropagation(); // prevent tap navigation
+                  e.stopPropagation();
                   onDelete(currentStory.id);
                 }}
                 className="w-8 h-8 rounded-full bg-black/30 backdrop-blur-sm flex items-center justify-center hover:bg-red-500/30 transition-colors"
@@ -387,9 +409,8 @@ const StoryViewer = ({
               </button>
             )}
 
-            {/* close button */}
             <button
-                title='close-story'
+              title="close-story"
               onClick={(e) => {
                 e.stopPropagation();
                 onClose();
@@ -401,7 +422,7 @@ const StoryViewer = ({
           </div>
         </div>
 
-        {/* ── Caption ────────────────────────────────────────────── */}
+        {/* ── Caption ─────────────────────────────────────────────── */}
         {currentStory.caption && (
           <div className="absolute bottom-8 left-0 right-0 px-5 z-10">
             <p className="text-white text-sm font-medium text-center leading-relaxed drop-shadow-lg">
@@ -410,8 +431,8 @@ const StoryViewer = ({
           </div>
         )}
 
-        {/* ── Paused overlay ─────────────────────────────────────── */}
-        {state.isPaused && (
+        {/* ── Paused overlay ───────────────────────────────────────── */}
+        {state.isPaused && !isLoadingUrl && (
           <div className="absolute inset-0 flex items-center justify-center pointer-events-none z-20">
             <div className="bg-black/40 backdrop-blur-sm rounded-full px-4 py-2">
               <span className="text-white text-xs font-bold uppercase tracking-wider">
@@ -421,8 +442,7 @@ const StoryViewer = ({
           </div>
         )}
 
-        {/* ── Left / Right tap zones — invisible hit areas ──────── */}
-        {/* These provide visual feedback arrows on hover            */}
+        {/* ── Left / Right tap zone arrows ────────────────────────── */}
         <div className="absolute inset-y-16 left-0 w-1/3 flex items-center pl-2 pointer-events-none">
           <ChevronLeft className="w-6 h-6 text-white/20" />
         </div>
@@ -431,11 +451,9 @@ const StoryViewer = ({
         </div>
       </div>
 
-      {/* ── Side navigation for desktop ───────────────────────── */}
-      {/* on large screens, previous/next author arrows appear     */}
-      {/* outside the story card itself                           */}
+      {/* ── Side navigation for desktop ─────────────────────────── */}
       <button
-        title='prev-story'
+        title="prev-story"
         onClick={() => dispatch({ type: 'PREV_STORY' })}
         className="hidden md:flex absolute left-4 w-12 h-12 rounded-full bg-white/10 backdrop-blur-sm items-center justify-center hover:bg-white/20 transition-colors"
         style={{ top: '50%', transform: 'translateY(-50%)' }}
@@ -443,7 +461,7 @@ const StoryViewer = ({
         <ChevronLeft className="w-6 h-6 text-white" />
       </button>
       <button
-        title='next-story'
+        title="next-story"
         onClick={() => dispatch({ type: 'NEXT_STORY' })}
         className="hidden md:flex absolute right-4 w-12 h-12 rounded-full bg-white/10 backdrop-blur-sm items-center justify-center hover:bg-white/20 transition-colors"
         style={{ top: '50%', transform: 'translateY(-50%)' }}

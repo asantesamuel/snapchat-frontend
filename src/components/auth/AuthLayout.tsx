@@ -37,11 +37,11 @@ const AuthLayout = ({
         <div className="mb-8 flex flex-col items-center gap-3">
           <div className="relative">
             {/* Snapchat ghost silhouette using CSS */}
-            <div className="w-16 h-16 bg-[#FFFC00] rounded-2xl flex items-center justify-center shadow-[0_0_40px_rgba(255,252,0,0.3)]">
+            {/* <div className="w-16 h-16 bg-[#FFFC00] rounded-2xl flex items-center justify-center shadow-[0_0_40px_rgba(255,252,0,0.3)]">
               <svg viewBox="0 0 100 100" className="w-10 h-10" fill="black">
                 <path d="M50 10C33 10 22 22 22 38c0 5 1 9 3 13l-4 2c-1 0.5-1.5 2-0.5 3l1 2c0.5 1 2 1.5 3 1l2-1c2 3 5 5 8 6-1 2-4 3-8 4-1 0.3-2 1.5-1.5 2.5 0.5 2 4 3 9 4 0.5 1 1 3 2 4 0.5 1 1.5 1 2.5 0.8 1-0.2 3-0.8 6-0.8s5 0.6 6 0.8c1 0.2 2-0.2 2.5-0.8 1-1 1.5-3 2-4 5-1 8.5-2 9-4 0.5-1-0.5-2.2-1.5-2.5-4-1-7-2-8-4 3-1 6-3 8-6l2 1c1 0.5 2.5 0 3-1l1-2c1-1 0.5-2.5-0.5-3l-4-2c2-4 3-8 3-13C78 22 67 10 50 10z"/>
               </svg>
-            </div>
+            </div> */}
             <div className="absolute -inset-1 rounded-2xl bg-[#FFFC00]/20 blur-xl -z-10" />
           </div>
           <span className="text-white font-black text-2xl tracking-tight">Snapchat</span>

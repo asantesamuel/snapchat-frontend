@@ -41,14 +41,18 @@ const LoginPage = () => {
       bottomLinkText="Sign up"
       bottomLinkTo="/register"
     >
-      <form onSubmit={handleSubmit(onSubmit)} className="flex flex-col gap-4">
+      <form
+        onSubmit={handleSubmit(onSubmit)}
+        className="flex flex-col gap-5 mt-2"
+      >
         <Input
           label="Email"
           type="email"
           placeholder="you@example.com"
           autoComplete="email"
-          leftIcon={<Mail className="w-4 h-4" />}
+          leftIcon={<Mail className="w-4 h-4 text-white/40" />}
           error={errors.email?.message}
+          className="bg-white/5 border border-white/10 focus:border-[#FFFC00] focus:ring-1 focus:ring-[#FFFC00]/40 backdrop-blur-md"
           {...register("email")}
         />
 
@@ -57,12 +61,12 @@ const LoginPage = () => {
           type={showPassword ? "text" : "password"}
           placeholder="••••••••"
           autoComplete="current-password"
-          leftIcon={<Lock className="w-4 h-4" />}
+          leftIcon={<Lock className="w-4 h-4 text-white/40" />}
           rightIcon={
             <button
               type="button"
               onClick={() => setShowPassword((v) => !v)}
-              className="text-white/40 hover:text-white transition-colors"
+              className="text-white/40 hover:text-[#FFFC00] transition-colors"
               tabIndex={-1}
             >
               {showPassword ? (
@@ -73,19 +77,25 @@ const LoginPage = () => {
             </button>
           }
           error={errors.password?.message}
+          className="bg-white/5 border border-white/10 focus:border-[#FFFC00] focus:ring-1 focus:ring-[#FFFC00]/40 backdrop-blur-md"
           {...register("password")}
         />
 
-        <div className="flex justify-end">
+        <div className="flex justify-end -mt-2">
           <Link
             to="/forgot-password"
-            className="text-[#FFFC00] text-sm font-semibold hover:underline"
+            className="text-sm font-medium text-white/50 hover:text-[#FFFC00] transition-colors"
           >
             Forgot password?
           </Link>
         </div>
 
-        <Button type="submit" size="lg" loading={isSubmitting} className="mt-2">
+        <Button
+          type="submit"
+          size="lg"
+          loading={isSubmitting}
+          className="mt-3 bg-[#FFFC00] text-black font-semibold hover:bg-yellow-300 transition-all duration-200 shadow-md shadow-yellow-500/20"
+        >
           {isSubmitting ? "Signing in..." : "Log In"}
         </Button>
       </form>

@@ -48,7 +48,7 @@ export const useFriends = () => {
   // ── Accept incoming request ────────────────────────────────────────
   const acceptRequest = useMutation({
     mutationFn: (id: string) => friendshipsApi.accept(id),
-    onSuccess: (_, id) => {
+    onSuccess: () => {
       toast.success('Friend request accepted!');
       invalidateAll();
     },

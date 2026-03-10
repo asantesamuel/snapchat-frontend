@@ -11,6 +11,7 @@ export const SOCKET_EVENTS = {
   TYPING_START:         'typing_start',
   TYPING_STOP:          'typing_stop',
   MESSAGE_SEEN:         'message_seen',
+  SAVE_EPHEMERAL:       'save_ephemeral_message',
   LEAVE_CONVERSATION:   'leave_conversation',
 
   // server → client
@@ -21,5 +22,6 @@ export const SOCKET_EVENTS = {
   USER_STOPPED_TYPING:  'user_stopped_typing',
   MESSAGE_READ:         'message_read',
   MESSAGE_DELETED:      'message_deleted',
+  MESSAGE_SAVED:        'message_saved',
   ERROR:                'error',
 } as const;

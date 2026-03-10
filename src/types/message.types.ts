@@ -63,3 +63,7 @@ export interface MessageSeenPayload {
   messageId: string;
   mediaId?: string;
 }
+
+export interface SaveEphemeralMessagePayload {
+  messageId: string;
+}

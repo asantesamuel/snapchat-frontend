@@ -10,6 +10,7 @@ import type {
   SendMessagePayload,
   SendGroupMessagePayload,
   MessageSeenPayload,
+  SaveEphemeralMessagePayload,
 } from '@/types/message.types';
 import { MessageStatus, MessageType } from '@/types/message.types';
 
@@ -21,7 +22,7 @@ export const useConversation = (
   conversationId: string,   // for DMs: the other user's UUID
   isGroup: boolean          // determines which socket events and API endpoints to use
 ) => {
-  const { user }       = useAuthStore();
+  const { user } = useAuthStore();
   const {
     messages,
     setMessages,
@@ -29,9 +30,9 @@ export const useConversation = (
     updateMessageStatus,
     typingUsers,
     setTyping,
+    decrementUnreadCount,    // ← new
+    markConversationRead,    // ← new
   } = useChatStore();
-
-
 
   // typing state refs — using refs not state because they do not need
   // to trigger re-renders, they just track timing between keystrokes
@@ -59,7 +60,19 @@ export const useConversation = (
     load();
   }, [conversationId, isGroup, setMessages]);
 
-  // ── 2. Join the socket room ──────────────────────────────────────
+  // ── 2. Clear unread badge when conversation is opened ───────────
+  // The sidebar badge (conversations[n].unreadCount) is set once when
+  // the conversation list loads and never updates on its own.
+  // The moment the user opens a conversation we set it to 0 immediately
+  // so the badge clears without waiting for any server confirmation.
+  // This is a local optimistic update — the server's own count stays
+  // accurate because read receipts are still emitted as normal via markSeen.
+  useEffect(() => {
+    if (!conversationId) return;
+    markConversationRead(conversationId);
+  }, [conversationId, markConversationRead]);
+
+  // ── 3. Join the socket room ──────────────────────────────────────
   // CRITICAL: for DMs, we emit the OTHER USER'S ID, not a conversation ID
   // the backend constructs the room name as dm:lowerUUID:higherUUID
   // for groups we emit the group's UUID directly
@@ -89,7 +102,7 @@ export const useConversation = (
     };
   }, [conversationId, isGroup]);
 
-  // ── 3. Listen for incoming messages ─────────────────────────────
+  // ── 4. Listen for incoming messages ─────────────────────────────
   useEffect(() => {
     const socket = getSocket();
     const event  = isGroup
@@ -110,14 +123,18 @@ export const useConversation = (
     };
 
     socket.on(event, handleNewMessage);
-
-    return () => {
-      socket.off(event, handleNewMessage);
-    };
+    return () => { socket.off(event, handleNewMessage); };
   }, [conversationId, isGroup, user?.id, appendMessage]);
 
-  // ── 4. Listen for read receipts ──────────────────────────────────
-  // fires when the OTHER person marks OUR message as seen
+  // ── 5. Listen for read receipts ──────────────────────────────────
+  // Fires when the OTHER person marks OUR message as seen.
+  // Updates the message bubble tick icon AND decrements the sidebar badge.
+  //
+  // WHY decrementUnreadCount is needed:
+  // updateMessageStatus() only updates the individual message bubble.
+  // The sidebar unread badge (conversations[n].unreadCount) is separate
+  // state that never updates on its own — without this call the badge
+  // stays at the old number permanently even after the message is read.
   useEffect(() => {
     const socket = getSocket();
 
@@ -125,14 +142,22 @@ export const useConversation = (
       messageId, readAt, status
     }: { messageId: string; readAt: string; status: MessageStatus }) => {
       updateMessageStatus(messageId, { status, readAt });
+      decrementUnreadCount(messageId);    // ← clears 1 from the sidebar badge
     };
 
     socket.on(SOCKET_EVENTS.MESSAGE_READ, handleRead);
     return () => { socket.off(SOCKET_EVENTS.MESSAGE_READ, handleRead); };
-  }, [updateMessageStatus]);
+  }, [updateMessageStatus, decrementUnreadCount]);
 
-  // ── 5. Listen for ephemeral deletions ───────────────────────────
-  // fires after recipient views an ephemeral message
+  // ── 6. Listen for ephemeral deletions ───────────────────────────
+  // Fires after recipient views an ephemeral message and the backend
+  // has nullified its content. Shows "Snap expired" placeholder AND
+  // decrements the sidebar badge.
+  //
+  // WHY decrementUnreadCount is needed here too:
+  // Ephemeral messages increment the unread count when received just
+  // like regular messages. When the snap is opened and message_deleted
+  // fires, the badge must drop by 1 to match.
   useEffect(() => {
     const socket = getSocket();
 
@@ -142,13 +167,27 @@ export const useConversation = (
         status:  MessageStatus.DELETED,
         content: null,
       });
+      decrementUnreadCount(messageId);    // ← clears 1 from the sidebar badge
     };
 
     socket.on(SOCKET_EVENTS.MESSAGE_DELETED, handleDeleted);
     return () => { socket.off(SOCKET_EVENTS.MESSAGE_DELETED, handleDeleted); };
+  }, [updateMessageStatus, decrementUnreadCount]);
+
+  // ── 6b. Listen for "saved" overrides ──────────────────────────────
+  // When either user saves an ephemeral media message, it becomes permanent.
+  useEffect(() => {
+    const socket = getSocket();
+
+    const handleSaved = ({ messageId, isEphemeral }: { messageId: string; isEphemeral: boolean }) => {
+      updateMessageStatus(messageId, { isEphemeral });
+    };
+
+    socket.on(SOCKET_EVENTS.MESSAGE_SAVED, handleSaved);
+    return () => { socket.off(SOCKET_EVENTS.MESSAGE_SAVED, handleSaved); };
   }, [updateMessageStatus]);
 
-  // ── 6. Listen for typing events from remote users ───────────────
+  // ── 7. Listen for typing events from remote users ───────────────
   useEffect(() => {
     const socket = getSocket();
 
@@ -169,7 +208,7 @@ export const useConversation = (
     };
   }, [conversationId, setTyping]);
 
-  // ── 7. Send a message ────────────────────────────────────────────
+  // ── 8. Send a message ────────────────────────────────────────────
   const sendMessage = useCallback((
     content: string,
     isEphemeral: boolean,
@@ -219,7 +258,7 @@ export const useConversation = (
     }
   }, [conversationId, isGroup]);
 
-  // ── 8. Mark a message as seen ────────────────────────────────────
+  // ── 9. Mark a message as seen ────────────────────────────────────
   // called by Intersection Observer when message enters viewport
   // or by tap on ephemeral media
   const markSeen = useCallback((
@@ -231,7 +270,13 @@ export const useConversation = (
     socket.emit(SOCKET_EVENTS.MESSAGE_SEEN, payload);
   }, []);
 
-  // ── 9. Emit typing indicators ────────────────────────────────────
+  const saveEphemeral = useCallback((messageId: string) => {
+    const socket = getSocket();
+    const payload: SaveEphemeralMessagePayload = { messageId };
+    socket.emit(SOCKET_EVENTS.SAVE_EPHEMERAL, payload);
+  }, []);
+
+  // ── 10. Emit typing indicators ───────────────────────────────────
   // call this on every keystroke in the message input
   // it debounces the typing_stop event automatically
   const onTyping = useCallback(() => {
@@ -262,6 +307,7 @@ export const useConversation = (
     messages:       conversationMessages,
     sendMessage,
     markSeen,
+    saveEphemeral,
     onTyping,
     typingUsernames,
     isAnyoneTyping: typingUsernames.length > 0,

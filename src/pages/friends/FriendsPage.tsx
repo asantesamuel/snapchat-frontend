@@ -2,7 +2,7 @@ import { useState, useEffect } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import {
   Users, UserPlus, Search,
-  Bell, MessageCircle
+  Bell
 } from 'lucide-react';
 import { cn } from '@/utils/cn';
 import { useFriends } from '@/hooks/useFriends';

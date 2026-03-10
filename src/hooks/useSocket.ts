@@ -1,5 +1,5 @@
 import { useEffect } from 'react';
-import { getSocket, connectSocket, disconnectSocket } from '@/socket/socket.client';
+import { getSocket, connectSocket } from '@/socket/socket.client';
 import { useAuthStore } from '@/store/auth.store';
 
 // initialises the socket connection when the user is authenticated

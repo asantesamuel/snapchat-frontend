@@ -17,7 +17,7 @@ export const useTyping = (
   useEffect(() => {
     const socket = getSocket();
 
-    const handleTyping = ({ userId, username }: {
+    const handleTyping = ({ username }: {
       userId: string;
       username: string;
     }) => {

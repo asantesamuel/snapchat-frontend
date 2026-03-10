@@ -1,14 +1,12 @@
 import { useParams, useNavigate } from 'react-router-dom';
-import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
+import { useQuery } from '@tanstack/react-query';
 import {
-  ArrowLeft, UserPlus, UserCheck,
+  ArrowLeft, UserPlus,
   MessageCircle, UserX, Loader2
 } from 'lucide-react';
-import toast from 'react-hot-toast';
 import { usersApi } from '@/api/users.api';
-import { friendshipsApi } from '@/api/friendships.api';
 import { useAuthStore } from '@/store/auth.store';
-import { useFriends, FRIENDS_KEY } from '@/hooks/useFriends';
+import { useFriends } from '@/hooks/useFriends';
 import Avatar from '@/components/ui/Avatar';
 import Spinner from '@/components/ui/Spinner';
 import { cn } from '@/utils/cn';
@@ -26,7 +24,6 @@ import { cn } from '@/utils/cn';
 const PublicProfilePage = () => {
   const { username }    = useParams<{ username: string }>();
   const navigate        = useNavigate();
-  const queryClient     = useQueryClient();
   const { user: me }    = useAuthStore();
   const { friends, sendRequest, removeFriend, isSending } = useFriends();
 

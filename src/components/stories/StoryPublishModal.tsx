@@ -2,7 +2,7 @@ import { useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import {
   X, Globe, Lock, Check,
-  Search, Loader2, BookOpen
+  Search, BookOpen
 } from 'lucide-react';
 import { cn } from '@/utils/cn';
 import { StoryVisibility, StoryType } from '@/types/story.types';

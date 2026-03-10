@@ -79,6 +79,7 @@ interface MediaMessageBubbleProps {
   message:          Message;
   isMine:           boolean;
   onSeen:           (messageId: string, mediaId?: string) => void;
+  onSaveEphemeral?: (messageId: string) => void;
   showAvatar?:      boolean;
   senderUsername?:  string;
 }
@@ -101,6 +102,7 @@ const MediaMessageBubble = ({
   message,
   isMine,
   onSeen,
+  onSaveEphemeral,
   showAvatar,
   senderUsername,
 }: MediaMessageBubbleProps) => {
@@ -116,29 +118,20 @@ const MediaMessageBubble = ({
   // Shows a spinner so the user knows the tap registered.
   const [isLoadingSecureUrl, setIsLoadingSecureUrl] = useState(false);
 
-  // Whether the 3-second post-view countdown has begun.
-  const [isExpiring, setIsExpiring] = useState(false);
-
-  // Whether the local expiry countdown has finished.
-  // Only after this is true do we honour message.status === DELETED.
+  // Whether the media has expired (backend deleted / 410 Gone).
   const [hasExpired, setHasExpired] = useState(false);
-
-  // Countdown seconds remaining (3 → 2 → 1).
-  const [countdown, setCountdown] = useState(3);
 
   // Controls the play button overlay on non-ephemeral video.
   const [isPlaying, setIsPlaying] = useState(false);
 
   const videoRef       = useRef<HTMLVideoElement>(null);
   const bubbleRef      = useRef<HTMLDivElement>(null);
-  const expiryTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
-  const countdownRef   = useRef<ReturnType<typeof setInterval> | null>(null);
+  // (legacy countdown refs removed – retention is now 24h server-side)
 
   // ── Cleanup timers on unmount ──────────────────────────────────────────────
   useEffect(() => {
     return () => {
-      if (expiryTimerRef.current)  clearTimeout(expiryTimerRef.current);
-      if (countdownRef.current)    clearInterval(countdownRef.current);
+      // no timers to clear
     };
   }, []);
 
@@ -259,29 +252,6 @@ const MediaMessageBubble = ({
 
     console.log('[Ephemeral] Media loaded, marking as seen:', { messageId: message.id });
     onSeen(message.id, message.mediaId ?? undefined);
-
-    startExpiryCountdown();
-  };
-
-  // ── Expiry countdown ──────────────────────────────────────────────────────
-  const startExpiryCountdown = () => {
-    setIsExpiring(true);
-    setCountdown(3);
-
-    countdownRef.current = setInterval(() => {
-      setCountdown(prev => {
-        if (prev <= 1) {
-          if (countdownRef.current) clearInterval(countdownRef.current);
-          return 0;
-        }
-        return prev - 1;
-      });
-    }, 1000);
-
-    expiryTimerRef.current = setTimeout(() => {
-      setHasExpired(true);
-      setIsExpiring(false);
-    }, 3000);
   };
 
   // ── Resolve which URL to use for rendering ────────────────────────────────
@@ -311,7 +281,7 @@ const MediaMessageBubble = ({
 
   // ── STATE 5: Expired ──────────────────────────────────────────────────────
   const isDeleted =
-    message.status === MessageStatus.DELETED && (hasExpired || !hasOpenedLocally);
+    message.status === MessageStatus.DELETED;
 
   if (isDeleted || hasExpired) {
     return (
@@ -379,7 +349,7 @@ const MediaMessageBubble = ({
               <Eye className="w-3 h-3 shrink-0" />
               {isLoadingSecureUrl
                 ? 'Opening snap...'
-                : 'Tap to open · disappears after viewing'
+                : 'Tap to open · auto-deletes after 24 hours'
               }
             </p>
           </div>
@@ -432,6 +402,18 @@ const MediaMessageBubble = ({
           && 'ring-2 ring-red-500/50'
       )}>
 
+        {/* Save button (ephemeral media only) */}
+        {message.isEphemeral && message.mediaId && onSaveEphemeral && (
+          <button
+            type="button"
+            onClick={() => onSaveEphemeral(message.id)}
+            className="absolute top-2 left-2 z-10 bg-black/60 text-white text-[10px] font-black px-2 py-1 rounded-full backdrop-blur-sm hover:bg-black/70 transition-colors"
+            title="Save snap"
+          >
+            Save
+          </button>
+        )}
+
         {/* ── IMAGE ─────────────────────────────────────────────────── */}
         {message.messageType === MessageType.IMAGE && (
           <div className="relative">
@@ -450,23 +432,12 @@ const MediaMessageBubble = ({
             {message.isEphemeral && !hasExpired && (
               <div className="absolute top-2 right-2 flex items-center gap-1 bg-black/60 rounded-full px-2 py-1 backdrop-blur-sm">
                 <Flame className="w-3 h-3 text-red-400" />
-                {isExpiring && (
-                  <span className="text-red-400 text-[10px] font-black">
-                    {countdown}
-                  </span>
-                )}
+                <span className="text-red-400 text-[10px] font-black">
+                  24h
+                </span>
               </div>
             )}
 
-            {isExpiring && (
-              <div
-                className="absolute inset-0 pointer-events-none rounded-2xl"
-                style={{
-                  background:
-                    'radial-gradient(ellipse at center, transparent 40%, rgba(239,68,68,0.25) 100%)',
-                }}
-              />
-            )}
           </div>
         )}
 
@@ -507,22 +478,10 @@ const MediaMessageBubble = ({
             {message.isEphemeral && !hasExpired && (
               <div className="absolute top-2 right-2 flex items-center gap-1 bg-black/60 rounded-full px-2 py-1 backdrop-blur-sm">
                 <Flame className="w-3 h-3 text-red-400" />
-                {isExpiring && (
-                  <span className="text-red-400 text-[10px] font-black">
-                    {countdown}
-                  </span>
-                )}
+                <span className="text-red-400 text-[10px] font-black">
+                  24h
+                </span>
               </div>
-            )}
-
-            {isExpiring && (
-              <div
-                className="absolute inset-0 pointer-events-none"
-                style={{
-                  background:
-                    'radial-gradient(ellipse at center, transparent 40%, rgba(239,68,68,0.25) 100%)',
-                }}
-              />
             )}
           </div>
         )}
@@ -539,7 +498,7 @@ const MediaMessageBubble = ({
               'w-9 h-9 rounded-full flex items-center justify-center shrink-0',
               isMine ? 'bg-black/15' : 'bg-white/10'
             )}>
-              {isExpiring
+              {message.isEphemeral
                 ? <Flame className="w-4 h-4 text-red-400" />
                 : <Volume2 className={cn(
                     'w-4 h-4',
@@ -561,11 +520,9 @@ const MediaMessageBubble = ({
             {message.isEphemeral && !hasExpired && (
               <div className="flex items-center gap-1 shrink-0">
                 <Flame className="w-4 h-4 text-red-400" />
-                {isExpiring && (
-                  <span className="text-red-400 text-xs font-black">
-                    {countdown}
-                  </span>
-                )}
+                <span className="text-red-400 text-xs font-black">
+                  24h
+                </span>
               </div>
             )}
           </div>

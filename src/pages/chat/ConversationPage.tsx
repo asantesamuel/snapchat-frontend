@@ -45,6 +45,7 @@ const ConversationPage = ({
     messages,
     sendMessage,
     markSeen,
+    saveEphemeral,
     onTyping,
     typingUsernames,
     isAnyoneTyping,
@@ -62,7 +63,7 @@ const ConversationPage = ({
   const handleSend = (content: string, isEphemeral: boolean) => {
     sendMessage(content, isEphemeral, MessageType.TEXT);
   };
-
+  
   return (
     <div className="flex h-full bg-black overflow-hidden">
       {/* ── Main conversation column ─────────────────────────────── */}
@@ -189,6 +190,7 @@ const ConversationPage = ({
                     message={message}
                     isMine={isMine}
                     onSeen={markSeen}
+                    onSaveEphemeral={saveEphemeral}
                     showAvatar={showAvatar}
                     senderUsername={message.senderUsername}
                   />

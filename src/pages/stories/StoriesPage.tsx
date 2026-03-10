@@ -38,7 +38,6 @@ const StoriesPage = () => {
   const [viewerAuthorIndex, setViewerAuthorIndex] = useState<number | null>(null);
 
   // whether to show viewer for own stories specifically
-  const [viewingOwnStories, setViewingOwnStories] = useState(false);
 
   // sort groups: unviewed first, then viewed
   // this mirrors Snapchat's feed order exactly
@@ -63,17 +62,14 @@ const StoriesPage = () => {
 
   const openViewer = (authorIndex: number) => {
     setViewerAuthorIndex(authorIndex);
-    setViewingOwnStories(false);
   };
 
   const openOwnStories = () => {
-    setViewingOwnStories(true);
     setViewerAuthorIndex(0); // own stories are index 0 in viewerGroups
   };
 
   const closeViewer = () => {
     setViewerAuthorIndex(null);
-    setViewingOwnStories(false);
     // refetch after viewing to update ring states
     refetchFeed();
   };

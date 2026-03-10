@@ -1,4 +1,4 @@
-import { useState, useRef, useEffect, useMemo } from 'react';
+import { useState, useEffect, useMemo } from 'react';
 import { X, Send, Flame, Image as ImageIcon, AlertCircle } from 'lucide-react';
 import { cn } from '@/utils/cn';
 

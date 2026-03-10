@@ -257,6 +257,7 @@ const CameraPage = () => {
           onPhoto={handlePhoto}
           onVideo={handleVideo}
           onAudio={handleAudio}
+          onGallery={() => {}}
           onClose={() => navigate(-1)}
         />
       )}

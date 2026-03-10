@@ -29,6 +29,7 @@ const MediaPreview = ({
   isUploading, uploadProgress,
 }: MediaPreviewProps) => {
   const videoRef = useRef<HTMLVideoElement>(null);
+  void mimeType;
 
   // auto-play video preview on mount
   useEffect(() => {

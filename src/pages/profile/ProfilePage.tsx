@@ -1,11 +1,10 @@
 import { useNavigate } from 'react-router-dom';
-import { useQuery } from '@tanstack/react-query';
 import {
   Settings, Edit2, Users, ArrowLeft,
-  Camera, UserCheck
+  Camera
 } from 'lucide-react';
 import { useAuthStore } from '@/store/auth.store';
-import { useProfile, PROFILE_KEY } from '@/hooks/useProfile';
+import { useProfile } from '@/hooks/useProfile';
 import { useFriends } from '@/hooks/useFriends';
 import Avatar from '@/components/ui/Avatar';
 import Spinner from '@/components/ui/Spinner';
